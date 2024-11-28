@@ -1,0 +1,66 @@
+FROM php:8.4-fpm-alpine
+
+# Install dependencies and tools in a single RUN command
+RUN apk add --no-cache \
+    bash \
+    nginx \
+    wget \
+    oniguruma-dev \
+    nano \
+    gnupg \
+    less \
+    libpng-dev \
+    libzip-dev \
+    su-exec \
+    unzip \
+    supervisor
+
+# Install PHP extensions
+RUN docker-php-ext-install \
+    bcmath \
+    exif \
+    mbstring \
+    opcache \
+    pdo \
+    pdo_mysql \
+    pcntl \
+    gd \
+    zip
+
+# Create necessary directories
+RUN mkdir -p /run/nginx /app /var/log/supervisor
+
+# Copy configuration files for nginx, PHP-FPM, and Supervisor
+COPY infra/nginx.conf /etc/nginx/nginx.conf
+COPY infra/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY infra/custom-php.ini /usr/local/etc/php/conf.d/custom-php.ini
+COPY infra/supervisord.conf /etc/supervisor/supervisord.conf
+COPY infra/supervisor-app.conf /etc/supervisor/conf.d/supervisor-app.conf
+
+# Set timezone environment variable
+ENV TZ=Asia/Tokyo
+
+# Set PHP ini scan directory (to load .ini files from conf.d)
+RUN echo "PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d/" > /usr/local/etc/php/php.ini
+
+# Copy the application files to the container
+COPY . /app
+
+# Install Composer
+RUN wget -q http://getcomposer.org/composer.phar && \
+    chmod a+x composer.phar && \
+    mv composer.phar /usr/local/bin/composer
+
+# Set permissions for the application
+COPY src/.env.example /app/src/.env
+RUN chown -R www-data: /app && \
+    chmod 775 -R /app/src/storage
+
+# Create php.ini file or use default php.ini development/production
+RUN cp /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini
+
+# Expose port 8080 for the application
+EXPOSE 8080
+
+# Define the entrypoint to start the application
+ENTRYPOINT [ "sh", "/app/infra/entrypoint.sh" ]

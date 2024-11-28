@@ -1,0 +1,59 @@
+services:
+  php:
+    build:
+      context: .
+      dockerfile: ./infra/docker/php/Dockerfile
+    container_name: php-container
+    volumes:
+      - ./src:/app
+    restart: always
+    ports:
+      - "9000:9000"
+    depends_on:
+      - mysql
+    # entrypoint: ["sh", "/app/infra/entrypoint.sh"]
+
+  mysql:
+    build:
+      context: .
+      dockerfile: ./infra/docker/mysql/Dockerfile
+    container_name: mysql-container
+    restart: always
+    ports:
+      - "33061:3306"
+    environment:
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: rootuser
+      MYSQL_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: root
+
+  webserver:
+    build:
+      context: .
+      dockerfile: ./infra/docker/nginx/Dockerfile
+    container_name: nginx-container
+    volumes:
+      - ./src:/app
+      - ./infra/docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "8080:80"
+    depends_on:
+      - php
+
+  pma:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin-container
+    ports:
+      - "8888:80"
+    volumes:
+      - pma-session-store:/sessions
+    environment:
+      - PMA_HOST=${DB_HOST:-mysql}
+      - PMA_USER=${DB_USERNAME:-rootuser}
+      - PMA_PASSWORD=${DB_PASSWORD:-root}
+
+volumes:
+  app:
+    driver: local
+  pma-session-store:
+    driver: local
